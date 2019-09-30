@@ -1,4 +1,4 @@
-# Librarian
+# Stellarlibrary
 
 This is a repo for trying to set up a code snippet for accessing various online archives for information about a star. 
 
