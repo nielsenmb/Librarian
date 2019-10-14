@@ -25,13 +25,13 @@ class search():
     def query_simbad(self):
         from astroquery.simbad import Simbad
         Simbad.add_votable_fields('sptype', 'ids')
-        time.sleep(0.1) # This is to keep you from being blacklisted by Simbad servers       
+        time.sleep(1) # This is to keep you from being blacklisted by Simbad servers       
         self.simbad = {'ID': None, 'entry': None}
         
         try:
             self.simbad['entry'] = Simbad.query_object(self.input_ID)
         except Exception as ex:
-            message = "An exception of type {0} occurred. Arguments:\n{1!r}".format(type(ex).__name__, ex.args)
+            message = "An exception of type {0} occurred when querying Simbad for {1}. Arguments:\n{2!r}".format(type(ex).__name__, self.input_ID, ex.args)
             print(message)
                    
         if not self.simbad['entry']:
@@ -62,21 +62,21 @@ class search():
         
     def query_KIC(self, radius = 10.0*u.arcsec):
         from astroquery.vizier import Vizier
-        time.sleep(0.1)
+        time.sleep(1)
         kicjob = Vizier.query_object(object_name = self.KIC['ID'], catalog = 'V/133/kic', radius = radius)
         self.KIC['entry'] = kicjob
         return self.KIC['ID'], self.KIC['entry']
     
     def query_EPIC(self, radius = 10.0*u.arcsec):
         from astroquery.vizier import Vizier
-        time.sleep(0.1)
+        time.sleep(1)
         job = Vizier.query_object(object_name = self.KIC['ID'], catalog = 'IV/34/epic', radius = radius)
         self.EPIC['entry'] = job
         return self.EPIC['ID'], self.EPIC['entry']
     
     def query_TIC(self, radius = 10.0*u.arcsec):
         from astroquery.mast import Catalogs
-        time.sleep(0.1)
+        time.sleep(1)
         ticjob = Catalogs.query_object(objectname=self.TIC['ID'], catalog='TIC', objType='STAR', radius = radius)
         self.TIC['entry'] = ticjob
         return self.TIC['ID'], self.TIC['entry']
@@ -92,7 +92,7 @@ class search():
         
         if self.GDR2['ID']:
             from astroquery.gaia import Gaia
-            time.sleep(0.1)
+            time.sleep(1)
 
             gid = int(self.GDR2['ID'].replace('Gaia DR2 ', ''))
             adql_query = "select * from gaiadr2.gaia_source where source_id=%i" % (gid)
