@@ -2,7 +2,11 @@ import astropy.units as u
 import time
 import numpy as np
 import pandas as pd
-
+from astropy.table import Table 
+from astropy.table import vstack as avstack
+from astroquery.vizier import Vizier
+from astroquery.simbad import Simbad
+Simbad.add_votable_fields('sptype', 'ids')
 
 def kic_to_kplr(x):
     y = x.strip('KIC')
