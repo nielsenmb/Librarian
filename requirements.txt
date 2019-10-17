@@ -1,2 +1,4 @@
 numpy
 astropy==3.2.1
+pandas
+astroquery
