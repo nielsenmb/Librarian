@@ -1,20 +1,54 @@
 import astropy.units as u
 import time
 import numpy as np
+import pandas as pd
+
+
+def kic_to_kplr(x):
+    y = x.strip('KIC')
+    y = 'kplr'+'0'*(9-len(y))+y
+    return y
+
+def kplr_to_kic(x):
+    y = x.strip('kplr')
+    return(str(int(y)))
+
+def format_name(name):
+    # Add naming exceptions here
+    if 'KIC' in name:
+        name = name.replace('KIC','KIC ')
+    if 'GRD2' in name:
+        name = name.replace('GDR2','Gaia DR2 ')
+    if 'GRD1' in name:
+        name = name.replace('GDR1','Gaia DR1 ')
+    return name
+
+
+def add_empty_row(tbl):
+    if len(tbl) == 0:
+        tbl.add_row([0], mask=[True])
+    else:
+        tbl.add_row([0]*len(tbl[-1]), mask = [True]*len(tbl[-1]))
 
 class search():
      
     def __init__(self, ID):
         
-        if not isinstance(ID, str):
-            TypeError('ID must be a string which is resolvable by Simbad')
-            return None
-        
-        self.input_ID = ID
-        self.KIC = {'ID': None, 'entry': None}
-        self.EPIC = {'ID': None, 'entry': None}
-        self.TIC = {'ID': None, 'entry': None}
-        self.GDR2 = {'ID': None, 'entry': None}
+        self.cats_avail =  ['SPOCS', 'KIC', 'TIC', 'EPIC', 'Gaia DR1', 'Gaia DR2', 'HD', 
+                            'HIP', 'HR', 'HIC', 'UBV', 'SAO', 'GEN#', 'TYC', '2MASS', 
+                            'GJ', 'PPM', 'BD', 'AG', 'GSC', 'Ci', 'PLX', 'SKY#', 'WISEA', 
+                            'WISE', 'PSO']
+               
+        if isinstance(ID, str):
+            ID = [ID]
+                
+        self.IDs = pd.DataFrame({'input': ID})
+                
+        for i in self.IDs.index:
+            self.IDs.input[i] = format_name(self.IDs.input[i])
+            for cat in self.cats_avail:
+                if cat in self.IDs.input[i]:                    
+                    self.IDs.loc[i, cat] = self.IDs.input[i]
 
     def __call__(self):
         self.query_simbad()
@@ -23,82 +57,82 @@ class search():
         self.query_GaiaDR2()
         
     def query_simbad(self):
-        from astroquery.simbad import Simbad
-        Simbad.add_votable_fields('sptype', 'ids')
         time.sleep(1) # This is to keep you from being blacklisted by Simbad servers       
-        self.simbad = {'ID': None, 'entry': None}
-        
-        try:
-            self.simbad['entry'] = Simbad.query_object(self.input_ID)
-        except Exception as ex:
-            message = "An exception of type {0} occurred when querying Simbad for {1}. Arguments:\n{2!r}".format(type(ex).__name__, self.input_ID, ex.args)
-            print(message)
+          
+        self.simbad = Simbad.query_objects(self.IDs.input)
                    
-        if not self.simbad['entry']:
-            print(f'Unable to find {self.input_ID} with Simbad')        
-        else:
-            IDS = self.simbad['entry']['IDS']
+        if not self.simbad:
+            print('Unable to find any of the targets with Simbad')        
+        else:            
+            for i in self.IDs.index: # Loop through query targets
+                inp = self.IDs.input[i]
             
-            self.simbad['ID'] = str(IDS[0]).strip("b'").split('|') 
-            if (len(self.simbad['ID']) == 0) or (len(self.simbad['ID']) > 40):
-                raise ValueError('Something went wrong trying to split the simbad IDS result')
-            
-            prefixes = ['Gaia DR2', 'KIC', 'EPIC', 'TIC']
-            #cats = ['KIC', 'TIC', 'EPIC', 'Gaia DR1', 'Gaia DR2', 'HD', 'HIP', 'HR', 'TYC']
-            
-            
-            dicts = [self.GDR2, self.KIC, self.EPIC, self.TIC]
-            for i, prefix in enumerate(prefixes):
-
-                tempid = [id for id in self.simbad['ID'] if prefix in id]
-                if len(tempid) == 1:
-                    dicts[i]['ID'] = tempid[0]
-                elif len(tempid) > 1:
-                    print(f'Warning: for some reason Simbad returned more than one {prefix} entry for {self.input_ID}.')
+                simIDS = [str(x) for x in self.simbad['IDS'] if inp in str(x)] # Find tgt simbad entry
+                
+                if len(simIDS) == 0: # Skip target if no entry found
+                    continue
                 else:
-                    pass
-
-        return self.simbad['entry']
+                    simIDS = simIDS[0].strip("b'").split('|')
+                    if (len(self.simbad['IDS']) == 0) or (len(self.simbad['IDS']) > 100):
+                        raise ValueError('Something went wrong trying to split the simbad IDS result')
+ 
+                    for k, id in enumerate(simIDS): # Assign names to ID dataframe
+                        for j, cat in enumerate(self.cats_avail):
+                            if cat in id:
+                                self.IDs.loc[i, cat] = simIDS[k]
+    
+        return self.simbad
+    
+    def query_KIC(self, ID = None, radius = 10.0*u.arcsec):
+        import warnings
+        from astropy.utils.metadata import MergeConflictWarning
+        warnings.filterwarnings("ignore", category = MergeConflictWarning)
         
-    def query_KIC(self, radius = 10.0*u.arcsec):
-        from astroquery.vizier import Vizier
-        time.sleep(1)
-        kicjob = Vizier.query_object(object_name = self.KIC['ID'], catalog = 'V/133/kic', radius = radius)
-        self.KIC['entry'] = kicjob
-        return self.KIC['ID'], self.KIC['entry']
-    
-    def query_EPIC(self, radius = 10.0*u.arcsec):
-        from astroquery.vizier import Vizier
-        time.sleep(1)
-        job = Vizier.query_object(object_name = self.KIC['ID'], catalog = 'IV/34/epic', radius = radius)
-        self.EPIC['entry'] = job
-        return self.EPIC['ID'], self.EPIC['entry']
-    
-    def query_TIC(self, radius = 10.0*u.arcsec):
-        from astroquery.mast import Catalogs
-        time.sleep(1)
-        ticjob = Catalogs.query_object(objectname=self.TIC['ID'], catalog='TIC', objType='STAR', radius = radius)
-        self.TIC['entry'] = ticjob
-        return self.TIC['ID'], self.TIC['entry']
-    
-    def query_GaiaDR2(self):
-        if not self.GDR2['ID']:
-            
-            if 'Gaia DR2' in self.input_ID:
-                self.GDR2['ID'] = self.input_ID
+        if not ID:
+            ID = a.IDs['KIC']
+                
+        tbl = Table(names = ('KIC',), dtype = (int,))
+        for i, id in enumerate(ID):
+            if not isinstance(id, str):
+                add_empty_row(tbl)
             else:
-                print(f'To query the Gaia DR2 catalog, {self.input_ID} must be a valid Gaia source id.')
-                print('Try using the archives.query_simbad() method.')            
-        
-        if self.GDR2['ID']:
-            from astroquery.gaia import Gaia
-            time.sleep(1)
+                job = Vizier.query_object(object_name = id, catalog = 'V/133/kic', radius = 10.0*u.arcsec)
 
-            gid = int(self.GDR2['ID'].replace('Gaia DR2 ', ''))
-            adql_query = "select * from gaiadr2.gaia_source where source_id=%i" % (gid)
+                if len(job) > 0:
+                    tbl = avstack([tbl, job[0]])      
+                else:
+                    add_empty_row(tbl)
+                    
+        self.KIC = tbl
+        return self.KIC
+    
+    def query_GaiaDR2(self, ID=None):
+        from astroquery.gaia import Gaia
 
-            job = Gaia.launch_job(adql_query).get_results()
-            idx = np.where(job['source_id'].quantity == gid)[0][0]
-            self.GDR2['entry'] = job[idx]
+        if not ID:
+            ID = a.IDs['Gaia DR2']
 
-        return self.GDR2['ID'], self.GDR2['entry']
+        tbl = Table(names = ('source_id',), dtype = (int,))
+        for i, gid in enumerate(ID):
+            if not isinstance(gid, str):
+                add_empty_row(tbl)
+            else:
+                gid = int(gid.replace('Gaia DR2 ', ''))
+
+                adql_query = "select * from gaiadr2.gaia_source where source_id=%i" % (gid)
+
+                job = Gaia.launch_job(adql_query).get_results()
+
+                idx = np.where(job['source_id'].quantity == gid)[0]
+                
+                if len(idx) > 0:
+                    tbl = avstack([tbl, job[idx]])
+                else:
+                    add_empty_row(tbl)
+           
+        self.GDR2 = tbl
+
+
+#job = Vizier.query_object(object_name = self.KIC['ID'], catalog = 'IV/34/epic', radius = radius)
+#from astroquery.mast import Catalogs
+#ticjob = Catalogs.query_object(objectname=self.TIC['ID'], catalog='TIC', objType='STAR', radius = radius)
