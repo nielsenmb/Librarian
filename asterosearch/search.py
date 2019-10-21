@@ -41,7 +41,7 @@ class search():
         self.cats_avail =  ['SPOCS', 'KIC', 'TIC', 'EPIC', 'Gaia DR1', 'Gaia DR2', 'HD', 
                             'HIP', 'HR', 'HIC', 'UBV', 'SAO', 'GEN#', 'TYC', '2MASS', 
                             'GJ', 'PPM', 'BD', 'AG', 'GSC', 'Ci', 'PLX', 'SKY#', 'WISEA', 
-                            'WISE', 'PSO']
+                            'WISE', 'PSO', 'ALLWISE']
                
         if isinstance(ID, str):
             ID = [ID]
@@ -136,6 +136,10 @@ class search():
            
         self.GDR2 = tbl
 
+# TYC2: I/259/tyc2
+# 2MASS: II/246/out
+# WISE: II/311/wise
+# ALLWISE: II/328/allwise
 
 #job = Vizier.query_object(object_name = self.KIC['ID'], catalog = 'IV/34/epic', radius = radius)
 #from astroquery.mast import Catalogs
