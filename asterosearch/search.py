@@ -7,6 +7,7 @@ from astropy.table import vstack as avstack
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 Simbad.add_votable_fields('sptype', 'ids')
+from tqdm import tqdm
 
 def kic_to_kplr(x):
     y = x.strip('KIC')
@@ -71,19 +72,19 @@ class search():
             for i in self.IDs.index: # Loop through query targets
                 inp = self.IDs.input[i]
             
-                simIDS = [str(x) for x in self.simbad['IDS'] if inp in str(x)] # Find tgt simbad entry
+                simID = [str(x) for x in self.simbad['IDS'] if inp in str(x)] # Find tgt simbad entry
                 
-                if len(simIDS) == 0: # Skip target if no entry found
+                if len(simID) == 0: # Skip target if no entry found
                     continue
                 else:
-                    simIDS = simIDS[0].strip("b'").split('|')
-                    if (len(self.simbad['IDS']) == 0) or (len(self.simbad['IDS']) > 100):
+                    simID = simID[0].strip("b'").split('|')
+                    if (len(simID) == 0) or (len(simID) > 100):
                         raise ValueError('Something went wrong trying to split the simbad IDS result')
  
-                    for k, id in enumerate(simIDS): # Assign names to ID dataframe
+                    for k, id in enumerate(simID): # Assign names to ID dataframe
                         for j, cat in enumerate(self.cats_avail):
                             if cat in id:
-                                self.IDs.loc[i, cat] = simIDS[k]
+                                self.IDs.loc[i, cat] = simID[k]
     
         return self.simbad
     
@@ -93,10 +94,10 @@ class search():
         warnings.filterwarnings("ignore", category = MergeConflictWarning)
         
         if not ID:
-            ID = a.IDs['KIC']
+            ID = self.IDs['KIC']
                 
         tbl = Table(names = ('KIC',), dtype = (int,))
-        for i, id in enumerate(ID):
+        for i, id in tqdm(enumerate(ID)):
             if not isinstance(id, str):
                 add_empty_row(tbl)
             else:
@@ -114,10 +115,10 @@ class search():
         from astroquery.gaia import Gaia
 
         if not ID:
-            ID = a.IDs['Gaia DR2']
+            ID = self.IDs['Gaia DR2']
 
         tbl = Table(names = ('source_id',), dtype = (int,))
-        for i, gid in enumerate(ID):
+        for i, gid in tqdm(enumerate(ID)):
             if not isinstance(gid, str):
                 add_empty_row(tbl)
             else:
