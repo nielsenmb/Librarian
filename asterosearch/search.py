@@ -1,5 +1,4 @@
 import astropy.units as u
-import time
 import numpy as np
 import pandas as pd
 from astropy.table import Table 
@@ -8,6 +7,7 @@ from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 Simbad.add_votable_fields('sptype', 'ids')
 from tqdm import tqdm
+import re, time
 
 def kic_to_kplr(x):
     y = x.strip('KIC')
@@ -21,19 +21,35 @@ def kplr_to_kic(x):
 def format_name(name):
     # Add naming exceptions here
     if 'KIC' in name:
-        name = name.replace('KIC','KIC ')
+        name = name.replace('KIC','')
+        name = re.sub(r"\s+", "", name, flags=re.UNICODE)
+        name = 'KIC '+name
+    
+    if 'EPIC' in name:
+        name = name.replace('EPIC','')
+        name = re.sub(r"\s+", "", name, flags=re.UNICODE)
+        name = 'EPIC '+name
+        
     if 'GRD2' in name:
         name = name.replace('GDR2','Gaia DR2 ')
     if 'GRD1' in name:
         name = name.replace('GDR1','Gaia DR1 ')
     return name
 
-
 def add_empty_row(tbl):
     if len(tbl) == 0:
         tbl.add_row([0], mask=[True])
     else:
         tbl.add_row([0]*len(tbl[-1]), mask = [True]*len(tbl[-1]))
+
+def add_to_table(job, tbl, identifier):
+    if len(job) == 0:
+        add_empty_row(tbl)
+    else:
+        for i, row in enumerate(job[0]):
+            if row[identifier] in id:
+                tbl = avstack([tbl, row])
+                break
 
 class search():
      
@@ -101,7 +117,7 @@ class search():
             if not isinstance(id, str):
                 add_empty_row(tbl)
             else:
-                job = Vizier.query_object(object_name = id, catalog = 'V/133/kic', radius = 10.0*u.arcsec)
+                job = Vizier.query_object(object_name = id, catalog = 'V/133/kic', radius = radius)
 
                 if len(job) > 0:
                     tbl = avstack([tbl, job[0]])      
@@ -136,12 +152,45 @@ class search():
                     add_empty_row(tbl)
            
         self.GDR2 = tbl
+    
+    def query_EPIC(self, ID=None, radius = 10.0*u.arcsec):
+        import warnings
+        from astropy.utils.metadata import MergeConflictWarning
+        warnings.filterwarnings("ignore", category = MergeConflictWarning)
+        
+        if not ID:
+            ID = self.IDs['EPIC']
+                
+        tbl = Table(names = ('ID',), dtype = (int,))
+        
+        for i, id in tqdm(enumerate(ID)):
+            id = id.replace('EPIC ','')
+            if not isinstance(id, str):
+                add_empty_row(tbl)
+            else:
+                
+                v = Vizier(column_filters={"ID":f"=={id}", 'OType':'STAR'})
+                job = v.get_catalogs('IV/34/epic')
+                
+                ridx = job[0]['ID'].quantity == int(id)
+                
+                if len(job[0][ridx]) > 0:
+                    tbl = avstack([tbl, job[0][ridx][0]])  
+                else:
+                    add_empty_row(tbl)
+
+
+#                elif len(job) == 1:
+#                    tbl = avstack([tbl, job[0][ridx]])      
+#                    
+        self.EPIC = tbl
+        return self.EPIC
 
 # TYC2: I/259/tyc2
 # 2MASS: II/246/out
 # WISE: II/311/wise
 # ALLWISE: II/328/allwise
 
-#job = Vizier.query_object(object_name = self.KIC['ID'], catalog = 'IV/34/epic', radius = radius)
+
 #from astroquery.mast import Catalogs
 #ticjob = Catalogs.query_object(objectname=self.TIC['ID'], catalog='TIC', objType='STAR', radius = radius)
