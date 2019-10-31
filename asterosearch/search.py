@@ -178,12 +178,15 @@ class search():
                     tbl = avstack([tbl, job[0][ridx][0]])  
                 else:
                     add_empty_row(tbl)
-
-
-#                elif len(job) == 1:
-#                    tbl = avstack([tbl, job[0][ridx]])      
-#                    
+        
         self.EPIC = tbl
+
+        self.query_simbad()
+        
+        for i in range(len(self.IDs)): 
+            if not isinstance(self.IDs['2MASS'][i], str):
+                self.IDs['2MASS'][i] = '2MASS J'+self.EPIC['_2MASS'][i]
+        
         return self.EPIC
 
 # TYC2: I/259/tyc2
