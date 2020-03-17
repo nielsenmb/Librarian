@@ -21,7 +21,8 @@ def kplr_to_kic(x):
 
 def format_name(name):
     # Add naming exceptions here
-    if 'KIC' in name:
+    
+    if any([x in name for x in ['KIC', 'kic', 'kplr', 'KPLR']]):
         name = name.replace('KIC','')
         name = re.sub(r"\s+", "", name, flags=re.UNICODE)
         name = 'KIC '+name
@@ -36,23 +37,15 @@ def format_name(name):
         name = re.sub(r"\s+", "", name, flags=re.UNICODE)
         name = 'EPIC '+name
         
-    if 'GRD2' in name:
-        name = name.replace('Gaia','')
-        name = name.replace('GAIA','')
-        name = name.replace('GDR2','')
-        name = name.replace('Gaia DR2','')
-        name = name.replace('GAIA DR2','')
-        
+    if 'GDR2' in name:
+        for x in ['Gaia', 'GAIA', 'GDR2', 'Gaia DR2', 'GAIA DR2', 'DR2']:
+            name = name.replace(x,'')
         name = re.sub(r"\s+", "", name, flags=re.UNICODE)
         name = 'Gaia DR2 '+name
         
-    if 'GRD1' in name:
-        name = name.replace('Gaia','')
-        name = name.replace('GAIA','')
-        name = name.replace('GDR1','')
-        name = name.replace('Gaia DR1','')
-        name = name.replace('GAIA DR1','')
-        
+    if 'GDR1' in name:
+        for x in ['Gaia', 'GAIA', 'GDR2', 'Gaia DR2', 'GAIA DR2', 'DR2']:
+            name = name.replace(x,'')
         name = re.sub(r"\s+", "", name, flags=re.UNICODE)
         name = 'Gaia DR1 '+name
     return name
