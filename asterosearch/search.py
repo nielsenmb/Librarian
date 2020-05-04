@@ -8,7 +8,8 @@ from astroquery.simbad import Simbad
 from astroquery.mast import Catalogs
 Simbad.add_votable_fields('sptype', 'ids')
 from tqdm import tqdm
-import re, time
+import re, time, warnings
+from astropy.utils.metadata import MergeConflictWarning
 
 def kic_to_kplr(x):
     y = x.strip('KIC')
@@ -21,37 +22,31 @@ def kplr_to_kic(x):
 
 def format_name(name):
     # Add naming exceptions here
-    
-    if any([x in name for x in ['KIC', 'kic', 'kplr', 'KPLR']]):
-        name = name.replace('KIC','')
-        name = re.sub(r"\s+", "", name, flags=re.UNICODE)
-        name = 'KIC '+name
-
-    if 'TIC' in name:
-        name = name.replace('TIC','')
-        name = re.sub(r"\s+", "", name, flags=re.UNICODE)
-        name = 'TIC '+name
-    
-    if 'EPIC' in name:
-        name = name.replace('EPIC','')
-        name = re.sub(r"\s+", "", name, flags=re.UNICODE)
-        name = 'EPIC '+name
+    name = str(name)
+    name = name.lower()
         
-    if 'GDR2' in name:
-        for x in ['Gaia', 'GAIA', 'GDR2', 'Gaia DR2', 'GAIA DR2', 'DR2']:
-            name = name.replace(x,'')
-        name = re.sub(r"\s+", "", name, flags=re.UNICODE)
-        name = 'Gaia DR2 '+name
-        
-    if 'GDR1' in name:
-        for x in ['Gaia', 'GAIA', 'GDR2', 'Gaia DR2', 'GAIA DR2', 'DR2']:
-            name = name.replace(x,'')
-        name = re.sub(r"\s+", "", name, flags=re.UNICODE)
-        name = 'Gaia DR1 '+name
-    return name
+    variants = {'KIC': ['kic', 'kplr'],
+                'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2'],
+                'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1'], 
+                'EPIC': ['epic', 'ktwo'],
+                'TIC': ['tic']
+               }
+    fname = None
+    for key in variants:   
+        for x in variants[key]:
+            if x in name:
+                fname = name.replace(x,'')
+                fname = re.sub(r"\s+", "", fname, flags=re.UNICODE)
+                fname = key+' '+fname
+                return fname
+    
+    if fname is None:
+        warnings.warn(f'Unable to format target {name} for Simbad query.')
 
-def add_empty_row(tbl):
-    tbl.add_row([0]*len(tbl.keys()), mask=[True]*len(tbl.keys()))
+#def add_empty_row(tbl):
+    #s.simbad.add_row(None)
+    #s.simbad[-1]['MAIN_ID'] = 2
+    #tbl.add_row([0]*len(tbl.keys()), mask=[True]*len(tbl.keys()))
 
 def add_to_table(job, tbl, identifier):
     if len(job) == 0:
@@ -61,6 +56,11 @@ def add_to_table(job, tbl, identifier):
             if row[identifier] in id:
                 tbl = avstack([tbl, row])
                 break
+            
+def bytes_to_str(x):
+    if not isinstance(x, (list, np.ndarray)):
+        x = [x]
+    return np.array(x).astype(str)
 
 class search():
      
@@ -70,8 +70,9 @@ class search():
                             'HIP', 'HR', 'HIC', 'UBV', 'SAO', 'GEN#', 'TYC', '2MASS', 
                             'GJ', 'PPM', 'BD', 'AG', 'GSC', 'Ci', 'PLX', 'SKY#', 'WISEA', 
                             'WISE', 'PSO', 'ALLWISE']
-               
-        if isinstance(ID, str):
+        if isinstance(ID, pd.Series):
+            ID = ID.values
+        elif not isinstance(ID, (list, tuple, np.ndarray, pd.Series)):       
             ID = [ID]
         
         self.IDs = pd.DataFrame({'input': ID})
@@ -90,89 +91,159 @@ class search():
         self.query_KIC()
         #self.query_TIC() 
         self.query_GaiaDR2()
-        
+
+
+           
     def query_simbad(self, ID=None):
-        time.sleep(1) # This is to keep you from being blacklisted by Simbad servers       
+        time.sleep(1) # This is to keep you from being temporarily blacklisted by Simbad servers       
 
         if ID is None:
-            ID = self.IDs.input
-            
+            ID = self.IDs.input.values
+        
         job = Simbad.query_objects(ID)
+
         if job is None:
             print('Unable to find any of the targets with Simbad')      
             self.simbad = None
             return self.simbad
         
+        # Create empty copy of query job to edit and parse.
         tbl = job.copy()
-        tbl.remove_rows(range(len(job)))
+        tbl.remove_rows(np.arange(len(tbl)))
         
-        for i, id in tqdm(enumerate(ID)):
-            add_empty_row(tbl)
-            for j, simIDs in enumerate(job['IDS']):
-                simIDs = str(simIDs)
-                if id in simIDs:
-                    tbl[i] = job[j]
-                    
-                    simIDslist = simIDs.strip("b'").split('|')
-                    if (len(simIDslist) == 0) or (len(simIDslist) > 100):
+        # Loop through targets in the returned query
+        
+        for j, y in enumerate(ID):
+            for i, jobIDS in enumerate(job.iterrows('IDS')):
+                jobIDS = np.array(jobIDS).astype(str)[0]
+            
+                # Loop through requested targets and compare with returned query.
+            
+                if y in jobIDS:
+                    tbl.add_row(job[i])
+                    jobIDSlist = jobIDS.strip("b'").split('|')
+                    if (len(jobIDSlist) == 0) or (len(jobIDSlist) > 100):
+                        print(jobIDSlist)
                         raise ValueError('Something went wrong trying to split the simbad IDS result')
                     else:
-                        for k, simID in enumerate(simIDslist): # Assign names to ID dataframe
-                            for c, cat in enumerate(self.cats_avail):
-                                if (cat in simID) and (len(self.IDs.loc[i, cat])==0):
-                                    self.IDs.loc[i, cat] = simID
-        self.simbad = tbl
-        return self.simbad        
+                        for jobID in jobIDSlist: # Assign names to ID dataframe
+                            for cat in self.cats_avail:
+                                if (cat in jobID) and (len(self.IDs.loc[j, cat])==0):
+                                    self.IDs.loc[j, cat] = jobID
+                    break # ensure only 1 target is added. 
+            
+            if (len(tbl)-1 < j):
+                tbl.add_row(None)
+                tbl[-1]['MAIN_ID'] = y
                     
-    def query_KIC(self, ID = None, radius = 10.0*u.arcsec):
-        import warnings
-        from astropy.utils.metadata import MergeConflictWarning
-        warnings.filterwarnings("ignore", category = MergeConflictWarning)
+        self.simbad = tbl
         
+        return self.simbad        
+    
+    
+    def query_KIC(self, ID = None, radius = 10.0*u.arcsec):
+    
+        warnings.filterwarnings("ignore", category = MergeConflictWarning)
+    
         if ID is None:
             ID = self.IDs['KIC']
-                
+    
         tbl = Table(names = ('KIC',), dtype = (int,))
         for i, id in tqdm(enumerate(ID)):
-            if not isinstance(id, str):
-                add_empty_row(tbl)
+            
+            if not isinstance(id, ):
+                tbl.add_row(None)
+                tbl[-1]['KIC'] = int(re.sub(r"\D", "", id))
+                
             else:
                 job = Vizier.query_object(object_name = id, catalog = 'V/133/kic', radius = radius)
-
+                
                 if len(job) > 0:
-                    tbl = avstack([tbl, job[0]])      
-                else:
-                    add_empty_row(tbl)
                     
+                    id_int = int(id.replace('KIC',''))
+                
+                    idx = job[0]['KIC'] == id_int
+                    
+                    id_int = int(id.replace('KIC',''))
+                
+                    idx = job[0]['KIC'] == id_int
+                    
+                    tbl = avstack([tbl, job[0][idx]]) 
+                
+                else:
+                    tbl.add_row(None)
+                    tbl[-1]['KIC'] = int(re.sub(r"\D", "", id))
+                    warnings.warn(f'Unable to find KIC entry for {id}')
+    
         self.KIC = tbl
         return self.KIC
     
     def query_GaiaDR2(self, ID=None):
         from astroquery.gaia import Gaia
+        
+        key = 'Gaia DR1'
 
         if ID is None:
-            ID = self.IDs['Gaia DR2']
-
+            ID = self.IDs[key]
+    
         tbl = Table(names = ('source_id',), dtype = (int,))
         for i, gid in tqdm(enumerate(ID)):
             if not isinstance(gid, str):
-                add_empty_row(tbl)
+                tbl.add_row(None)
+                tbl[-1][key] = int(re.sub(r"\D", "", gid))
+            elif len(gid) == 0:
+                tbl.add_row(None)
             else:
-                gid = int(gid.replace('Gaia DR2 ', ''))
-
+                gid = int(gid.replace(key+' ', ''))
+    
                 adql_query = "select * from gaiadr2.gaia_source where source_id=%i" % (gid)
-
-                job = Gaia.launch_job(adql_query).get_results()
-
-                idx = np.where(job['source_id'].quantity == gid)[0]
                 
+                job = Gaia.launch_job(adql_query).get_results()
+    
+                idx = np.where(job['source_id'].quantity == gid)[0]
+    
                 if len(idx) > 0:
                     tbl = avstack([tbl, job[idx]])
                 else:
-                    add_empty_row(tbl)
-           
+                    tbl.add_row(None)
+                    tbl[-1][key] = int(re.sub(r"\D", "", gid))
+    
         self.GDR2 = tbl
         return self.GDR2
+
+    def query_GaiaDR1(self, ID=None):
+        from astroquery.gaia import Gaia
+        
+        key = 'Gaia DR1'
+        
+        if ID is None:
+            ID = self.IDs[key]
+    
+        tbl = Table(names = ('source_id',), dtype = (int,))
+        for i, gid in tqdm(enumerate(ID)):
+            if not isinstance(gid, str):
+                tbl.add_row(None)
+                tbl[-1][key] = int(re.sub(r"\D", "", gid))
+            elif len(gid) == 0:
+                tbl.add_row(None)
+            else:
+                gid = int(gid.replace(key+' ', ''))
+    
+                adql_query = "select * from gaiadr1.gaia_source where source_id=%i" % (gid)
+                
+                job = Gaia.launch_job(adql_query).get_results()
+    
+                idx = np.where(job['source_id'].quantity == gid)[0]
+    
+                if len(idx) > 0:
+                    tbl = avstack([tbl, job[idx]])
+                else:
+                    tbl.add_row(None)
+                    tbl[-1][key] = int(re.sub(r"\D", "", gid))
+    
+        self.GDR1 = tbl
+        return self.GDR1
+    
     
     def query_EPIC(self, ID=None, radius = 10.0*u.arcsec):
         import warnings
@@ -214,6 +285,8 @@ class search():
 
     def query_TIC(self, ID=None, radius = 10.0*u.arcsec):
         
+        key = 'TIC'
+        
         if ID is None:
             ID = self.IDs['TIC']
         
@@ -233,8 +306,9 @@ class search():
         
         self.TIC = tbl
 
-        if not hasattr(self,'simbad'):
+        if not hasattr(self, 'simbad'):
             self.query_simbad(ID)  
+            
         for i in range(len(self.IDs)): 
             if len(self.IDs['2MASS'][i])==0 and (self.TIC['TWOMASS'][i] != 0):
                 self.IDs['2MASS'][i] = '2MASS J'+self.TIC['TWOMASS'][i]
