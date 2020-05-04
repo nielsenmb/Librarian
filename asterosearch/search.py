@@ -181,13 +181,14 @@ class search():
     def query_GaiaDR2(self, ID=None):
         from astroquery.gaia import Gaia
         
-        key = 'Gaia DR1'
+        key = 'Gaia DR2'
 
         if ID is None:
             ID = self.IDs[key]
     
         tbl = Table(names = ('source_id',), dtype = (int,))
         for i, gid in tqdm(enumerate(ID)):
+            print(gid)
             if not isinstance(gid, str):
                 tbl.add_row(None)
                 tbl[-1][key] = int(re.sub(r"\D", "", gid))
