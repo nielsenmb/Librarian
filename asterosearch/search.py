@@ -26,6 +26,7 @@ def format_name(name):
     name = name.lower()
         
     variants = {'KIC': ['kic', 'kplr'],
+                'Gaia DR3': ['gaia dr3', 'gdr3', 'dr3'],
                 'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2'],
                 'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1'], 
                 'EPIC': ['epic', 'ktwo'],
@@ -66,12 +67,15 @@ class search():
      
     def __init__(self, ID):
         
-        self.cats_avail =  ['SPOCS', 'KIC', 'TIC', 'EPIC', 'Gaia DR1', 'Gaia DR2', 'HD', 
-                            'HIP', 'HR', 'HIC', 'UBV', 'SAO', 'GEN#', 'TYC', '2MASS', 
-                            'GJ', 'PPM', 'BD', 'AG', 'GSC', 'Ci', 'PLX', 'SKY#', 'WISEA', 
-                            'WISE', 'PSO', 'ALLWISE']
+        self.cats_avail =  ['SPOCS', 'KIC', 'TIC', 'EPIC', 'Gaia DR1', 'Gaia DR2', 
+                            'Gaia DR3', 'HD', 'HIP', 'HR', 'HIC', 'UBV', 'SAO', 
+                            'GEN#', 'TYC', '2MASS',  'GJ', 'PPM', 'BD', 'AG', 
+                            'GSC', 'Ci', 'PLX', 'SKY#', 'WISEA', 'WISE', 'PSO', 
+                            'ALLWISE']
+        
         if isinstance(ID, pd.Series):
             ID = ID.values
+
         elif not isinstance(ID, (list, tuple, np.ndarray, pd.Series)):       
             ID = [ID]
         
@@ -89,8 +93,8 @@ class search():
     def __call__(self):
         self.query_simbad()
         self.query_KIC()
-        #self.query_TIC() 
-        self.query_GaiaDR2()
+        self.query_TIC() 
+        self.query_GaiaDR3()
 
 
            
@@ -112,7 +116,6 @@ class search():
         tbl.remove_rows(np.arange(len(tbl)))
         
         # Loop through targets in the returned query
-        
         for j, y in enumerate(ID):
             for i, jobIDS in enumerate(job.iterrows('IDS')):
                 jobIDS = np.array(jobIDS).astype(str)[0]
@@ -177,6 +180,45 @@ class search():
     
         self.KIC = tbl
         return self.KIC
+    
+    def query_GaiaDR3(self, ID=None):
+        from astroquery.gaia import Gaia
+        
+        key = 'Gaia DR3'
+
+        if ID is None:
+            ID = self.IDs[key]
+    
+        tbl = Table(names = ('source_id',), dtype = (int,))
+
+        for i, gid in tqdm(enumerate(ID)):
+            print(gid)
+
+            if not isinstance(gid, str):
+                tbl.add_row(None)
+
+                tbl[-1][key] = int(re.sub(r"\D", "", gid))
+
+            elif len(gid) == 0:
+                tbl.add_row(None)
+
+            else:
+                gid = int(gid.replace(key+' ', ''))
+    
+                adql_query = "select * from gaiadr3.gaia_source where source_id=%i" % (gid)
+                
+                job = Gaia.launch_job(adql_query).get_results()
+    
+                idx = np.where(job['source_id'].quantity == gid)[0]
+    
+                if len(idx) > 0:
+                    tbl = avstack([tbl, job[idx]])
+                else:
+                    tbl.add_row(None)
+                    tbl[-1][key] = int(re.sub(r"\D", "", gid))
+    
+        self.GDR3 = tbl
+        return self.GDR3
     
     def query_GaiaDR2(self, ID=None):
         from astroquery.gaia import Gaia
