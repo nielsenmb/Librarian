@@ -66,13 +66,7 @@ def bytes_to_str(x):
 class search():
      
     def __init__(self, ID):
-        
-        self.cats_avail =  ['SPOCS', 'KIC', 'TIC', 'EPIC', 'Gaia DR1', 'Gaia DR2', 
-                            'Gaia DR3', 'HD', 'HIP', 'HR', 'HIC', 'UBV', 'SAO', 
-                            'GEN#', 'TYC', '2MASS',  'GJ', 'PPM', 'BD', 'AG', 
-                            'GSC', 'Ci', 'PLX', 'SKY#', 'WISEA', 'WISE', 'PSO', 
-                            'ALLWISE']
-        
+                
         if isinstance(ID, pd.Series):
             ID = ID.values
 
@@ -96,6 +90,11 @@ class search():
         self.query_TIC() 
         self.query_GaiaDR3()
 
+    cats_avail = ['SPOCS', 'KIC', 'TIC', 'EPIC', 'Gaia DR1', 'Gaia DR2', 
+            'Gaia DR3', 'HD', 'HIP', 'HR', 'HIC', 'UBV', 'SAO', 
+            'GEN#', 'TYC', '2MASS',  'GJ', 'PPM', 'BD', 'AG', 
+	    'GSC', 'Ci', 'PLX', 'SKY#', 'WISEA', 'WISE', 'PSO', 
+	    'ALLWISE']
 
            
     def query_simbad(self, ID=None):
