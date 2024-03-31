@@ -188,10 +188,9 @@ class search():
         if ID is None:
             ID = self.IDs[key]
     
-        tbl = Table(names = ('source_id',), dtype = (int,))
+        tbl = Table(names=('source_id',), dtype=(int,))
 
         for i, gid in tqdm(enumerate(ID)):
-            print(gid)
 
             if not isinstance(gid, str):
                 tbl.add_row(None)
@@ -204,19 +203,37 @@ class search():
             else:
                 gid = int(gid.replace(key+' ', ''))
     
-                adql_query = "select * from gaiadr3.gaia_source where source_id=%i" % (gid)
+                src_adql_query = "select * from gaiadr3.gaia_source where source_id=%i" % (gid)
                 
-                job = Gaia.launch_job(adql_query).get_results()
-    
-                idx = np.where(job['source_id'].quantity == gid)[0]
+                srcJob = Gaia.launch_job(src_adql_query).get_results()
+                 
+                idx = np.where(srcJob['SOURCE_ID'].quantity == gid)[0]
     
                 if len(idx) > 0:
-                    tbl = avstack([tbl, job[idx]])
+                    tbl = avstack([tbl, srcJob[idx]])
+
+
+                    astPars_adql_query = "select * from gaiadr3.astrophysical_parameters where source_id=%i" % (gid)
+
+                    astParsJob = Gaia.launch_job(astPars_adql_query).get_results()
+                     
+                    for key in astParsJob.keys():
+                        if key not in srcJob.keys():
+                            tbl[key] = astParsJob[key]
+
+
                 else:
                     tbl.add_row(None)
                     tbl[-1][key] = int(re.sub(r"\D", "", gid))
     
+
+                
+                
+
+
+
         self.GDR3 = tbl
+
         return self.GDR3
     
     def query_GaiaDR2(self, ID=None):
@@ -242,7 +259,7 @@ class search():
                 
                 job = Gaia.launch_job(adql_query).get_results()
     
-                idx = np.where(job['source_id'].quantity == gid)[0]
+                idx = np.where(job['SOURCE_ID'].quantity == gid)[0]
     
                 if len(idx) > 0:
                     tbl = avstack([tbl, job[idx]])
